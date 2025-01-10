@@ -23,7 +23,7 @@ Bot Discord untuk auto-leveling dengan fitur pengiriman pesan otomatis yang mend
 
 1. Clone repository ini
 ```bash
-git clone https://github.com/username/discord-auto-chat.git
+git clone https://github.com/Aethereal-Collective/discord-auto-chat.git
 cd discord-auto-chat
 ```
 

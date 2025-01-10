@@ -3,6 +3,8 @@ import asyncio
 import discord
 from colorama import init, Fore, Style
 import time
+from datetime import datetime
+import pytz  # Untuk menangani zona waktu
 
 init(autoreset=True)
 
@@ -15,9 +17,32 @@ white = Fore.LIGHTWHITE_EX
 reset = Style.RESET_ALL
 magenta = Fore.LIGHTMAGENTA_EX
 
-print(f'\n{blue}+-+  +-++------+   +-+   +-+  +-++------++-+  +-++------++-+  +-++------++-+{reset}')
-print(f'{blue}                        Aethereal auto leveling discord{reset}')
-print(f'{blue}+-+  +-++------+   +-+   +-+  +-++------++-+  +-++------++-+  +-++------++-+\n{reset}')
+def get_timestamp():
+    # Menggunakan zona waktu Asia/Jakarta (WIB)
+    wib = pytz.timezone('Asia/Jakarta')
+    now = datetime.now(wib)
+    return f"{blue}[{now.strftime('%H:%M:%S')}]{reset}"
+
+def log_info(message):
+    print(f"{get_timestamp()} {white}INFO{reset}    | {message}")
+
+def log_success(message):
+    print(f"{get_timestamp()} {green}SUCCESS{reset} | {message}")
+
+def log_warning(message):
+    print(f"{get_timestamp()} {yellow}WARNING{reset} | {message}")
+
+def log_error(message):
+    print(f"{get_timestamp()} {red}ERROR{reset}   | {message}")
+
+# Banner
+def print_banner():
+    print(f"\n{blue}▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰{reset}")
+    print(f"{white}      Discord Auto Leveling      {reset}")
+    print(f"{yellow}         by: Aethereal          {reset}")
+    print(f"{blue}▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰{reset}\n")
+
+print_banner()
 
 def load_tokens():
     tokens = []
@@ -28,11 +53,11 @@ def load_tokens():
                 if line.strip() and not line.startswith('#'):
                     tokens.append(line.strip())
             if tokens:
-                print(f"{green}Berhasil memuat {len(tokens)} token dari token.txt{reset}")
+                log_success(f"Berhasil memuat {len(tokens)} token dari token.txt")
             return tokens
     except FileNotFoundError:
-        print(f"{red}File token.txt tidak ditemukan!{reset}")
-        print(f"{yellow}Buat file token.txt dengan format:{reset}")
+        log_error("File token.txt tidak ditemukan!")
+        log_info("Buat file token.txt dengan format:")
         print(f"{yellow}TOKEN1{reset}")
         print(f"{yellow}TOKEN2{reset}")
         print(f"{yellow}TOKEN3{reset}")
@@ -108,15 +133,17 @@ class Main(discord.Client):
         self.config = config
         
     async def on_ready(self):
-        print(f'{white}\nLogged in as {self.user}.{reset}')
-        print(f'{green}Open the channel. . .{reset}')
+        log_success(f"Logged in as {self.user}")
+        log_info(f"Mencoba membuka channel...")
+        
         channel = self.get_channel(self.config.channel_id)
         
         if not channel:
-            print(f'{red}Error: Channel tidak ditemukan!{reset}')
+            log_error(f"Channel tidak ditemukan!")
             await self.close()
             return
             
+        log_success(f"Berhasil terhubung ke channel #{channel.name}")
         sent_count = 0
 
         while sent_count < self.config.message_count:
@@ -125,61 +152,61 @@ class Main(discord.Client):
                     break
                 try:
                     sent_message = await channel.send(msg)
-                    print(f'{green}[{self.user}] Sent message {sent_count+1} in #{channel.name}.{reset}')
+                    log_success(f"[{self.user}] Pesan {sent_count+1}/{self.config.message_count} terkirim")
                     
                     try:
                         await sent_message.delete()
-                        print(f'{red}[{self.user}] Deleted message {sent_count+1} in #{channel.name}.{reset}')
+                        log_info(f"[{self.user}] Pesan {sent_count+1} dihapus")
                     except discord.errors.Forbidden:
-                        print(f'{red}[{self.user}] Tidak bisa menghapus pesan (tidak ada izin){reset}')
+                        log_warning(f"[{self.user}] Tidak bisa menghapus pesan (tidak ada izin)")
                     except discord.errors.NotFound:
-                        print(f'{red}[{self.user}] Pesan sudah dihapus{reset}')
+                        log_warning(f"[{self.user}] Pesan sudah dihapus")
                     
                     sent_count += 1
                     
                 except discord.errors.Forbidden as e:
                     if "Cannot send messages in a voice channel" in str(e):
-                        print(f'{red}Error: Tidak bisa mengirim pesan di voice channel!{reset}')
+                        log_error(f"[{self.user}] Tidak bisa mengirim pesan di voice channel!")
                         await self.close()
                         return
                     elif "slowmode" in str(e).lower():
-                        print(f'{yellow}Channel dalam mode slowmode. Menunggu...{reset}')
-                        await asyncio.sleep(10)  # Tunggu 10 detik jika kena slowmode
+                        log_warning(f"[{self.user}] Channel dalam mode slowmode. Menunggu...")
+                        await asyncio.sleep(10)
                         continue
                     elif "timeout" in str(e).lower():
-                        print(f'{red}Error: Akun sedang dalam timeout!{reset}')
+                        log_error(f"[{self.user}] Akun sedang dalam timeout!")
                         await self.close()
                         return
                     else:
-                        print(f'{red}Error: Tidak bisa mengirim pesan! ({str(e)}){reset}')
+                        log_error(f"[{self.user}] Tidak bisa mengirim pesan! ({str(e)})")
                         await self.close()
                         return
                         
                 except discord.errors.HTTPException as e:
                     if e.code == 429:  # Rate limit
                         retry_after = e.retry_after
-                        print(f'{yellow}Rate limit terdeteksi. Menunggu {retry_after} detik...{reset}')
+                        log_warning(f"[{self.user}] Rate limit terdeteksi. Menunggu {retry_after} detik...")
                         await asyncio.sleep(retry_after)
                         continue
                     else:
-                        print(f'{red}Error HTTP: {str(e)}{reset}')
+                        log_error(f"[{self.user}] Error HTTP: {str(e)}")
                         continue
                         
                 except Exception as e:
-                    print(f'{red}Error tidak dikenal: {str(e)}{reset}')
+                    log_error(f"[{self.user}] Error tidak dikenal: {str(e)}")
                     continue
                     
                 await asyncio.sleep(self.config.message_delay)
 
-        print(f'{yellow}[{self.user}] Completed sending {self.config.message_count} messages.{reset}')
+        log_success(f"[{self.user}] Berhasil mengirim {self.config.message_count} pesan")
         await self.close()
 
 def main():
-    print(f"{blue}Memuat token dari token.txt...{reset}")
+    log_info("Memuat token dari token.txt...")
     tokens = load_tokens()
     
     if not tokens:
-        print(f"{red}Tidak ada token yang berhasil dimuat!{reset}")
+        log_error("Tidak ada token yang berhasil dimuat!")
         return
     
     channel_id = int(input(f"{magenta}Masukkan Channel ID: {reset}"))
@@ -192,7 +219,7 @@ def main():
     
     # Menjalankan akun satu per satu
     for i, config in enumerate(accounts, 1):
-        print(f"\n{blue}Menjalankan akun {i} dari {len(accounts)}...{reset}")
+        log_info(f"Menjalankan akun {i} dari {len(accounts)}...")
         try:
             # Buat event loop baru untuk setiap akun
             loop = asyncio.new_event_loop()
@@ -201,26 +228,25 @@ def main():
             client = Main(config)
             client.run(config.token, bot=False)
         except discord.LoginFailure:
-            print(f'{red}Error: Token tidak valid atau expired!{reset}')
+            log_error(f"Token tidak valid atau expired!")
         except discord.PrivilegedIntentsRequired:
-            print(f'{red}Error: Intents tidak diizinkan!{reset}')
+            log_error(f"Intents tidak diizinkan!")
         except Exception as e:
-            print(f'{red}Error: {str(e)}{reset}')
+            log_error(f"Error: {str(e)}")
         finally:
-            # Pastikan event loop ditutup dengan benar
             try:
                 loop.close()
             except:
                 pass
             
-        if i < len(accounts):  # Jika bukan akun terakhir
-            print(f"{blue}Menunggu 5 detik sebelum menjalankan akun berikutnya...{reset}")
+        if i < len(accounts):
+            log_info(f"Menunggu 5 detik sebelum menjalankan akun berikutnya...")
             time.sleep(5)
 
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print(f"\n{yellow}Program dihentikan oleh user{reset}")
+        log_warning("Program dihentikan oleh user")
     except Exception as e:
-        print(f"\n{red}Terjadi error: {e}{reset}")
+        log_error(f"Terjadi error: {e}")

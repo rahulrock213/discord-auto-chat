@@ -5,6 +5,7 @@ from colorama import init, Fore, Style
 import time
 from datetime import datetime
 import pytz  # Untuk menangani zona waktu
+import random  # Untuk pemilihan pesan random
 
 init(autoreset=True)
 
@@ -64,11 +65,12 @@ def load_tokens():
         exit(1)
 
 class AccountConfig:
-    def __init__(self, token, channel_id, message_count, message_delay):
+    def __init__(self, token, channel_id, message_count, message_delay, delete_mode=True):
         self.token = token
         self.channel_id = channel_id
         self.message_count = message_count
-        self.message_delay = message_delay  # delay antara setiap pesan
+        self.message_delay = message_delay
+        self.delete_mode = delete_mode
 
 mainMessages = [
     'Just checking in!',
@@ -147,13 +149,13 @@ class Main(discord.Client):
         sent_count = 0
 
         while sent_count < self.config.message_count:
-            for i, msg in enumerate(mainMessages):
-                if sent_count >= self.config.message_count:
-                    break
-                try:
-                    sent_message = await channel.send(msg)
-                    log_success(f"[{self.user}] Pesan {sent_count+1}/{self.config.message_count} terkirim")
-                    
+            # Memilih pesan secara random
+            msg = random.choice(mainMessages)
+            try:
+                sent_message = await channel.send(msg)
+                log_success(f"[{self.user}] Pesan {sent_count+1}/{self.config.message_count} terkirim")
+                
+                if self.config.delete_mode:
                     try:
                         await sent_message.delete()
                         log_info(f"[{self.user}] Pesan {sent_count+1} dihapus")
@@ -161,42 +163,42 @@ class Main(discord.Client):
                         log_warning(f"[{self.user}] Tidak bisa menghapus pesan (tidak ada izin)")
                     except discord.errors.NotFound:
                         log_warning(f"[{self.user}] Pesan sudah dihapus")
+                
+                sent_count += 1
+                
+            except discord.errors.Forbidden as e:
+                if "Cannot send messages in a voice channel" in str(e):
+                    log_error(f"[{self.user}] Tidak bisa mengirim pesan di voice channel!")
+                    await self.close()
+                    return
+                elif "slowmode" in str(e).lower():
+                    log_warning(f"[{self.user}] Channel dalam mode slowmode. Menunggu...")
+                    await asyncio.sleep(10)
+                    continue
+                elif "timeout" in str(e).lower():
+                    log_error(f"[{self.user}] Akun sedang dalam timeout!")
+                    await self.close()
+                    return
+                else:
+                    log_error(f"[{self.user}] Tidak bisa mengirim pesan! ({str(e)})")
+                    await self.close()
+                    return
                     
-                    sent_count += 1
-                    
-                except discord.errors.Forbidden as e:
-                    if "Cannot send messages in a voice channel" in str(e):
-                        log_error(f"[{self.user}] Tidak bisa mengirim pesan di voice channel!")
-                        await self.close()
-                        return
-                    elif "slowmode" in str(e).lower():
-                        log_warning(f"[{self.user}] Channel dalam mode slowmode. Menunggu...")
-                        await asyncio.sleep(10)
-                        continue
-                    elif "timeout" in str(e).lower():
-                        log_error(f"[{self.user}] Akun sedang dalam timeout!")
-                        await self.close()
-                        return
-                    else:
-                        log_error(f"[{self.user}] Tidak bisa mengirim pesan! ({str(e)})")
-                        await self.close()
-                        return
-                        
-                except discord.errors.HTTPException as e:
-                    if e.code == 429:  # Rate limit
-                        retry_after = e.retry_after
-                        log_warning(f"[{self.user}] Rate limit terdeteksi. Menunggu {retry_after} detik...")
-                        await asyncio.sleep(retry_after)
-                        continue
-                    else:
-                        log_error(f"[{self.user}] Error HTTP: {str(e)}")
-                        continue
-                        
-                except Exception as e:
-                    log_error(f"[{self.user}] Error tidak dikenal: {str(e)}")
+            except discord.errors.HTTPException as e:
+                if e.code == 429:  # Rate limit
+                    retry_after = e.retry_after
+                    log_warning(f"[{self.user}] Rate limit terdeteksi. Menunggu {retry_after} detik...")
+                    await asyncio.sleep(retry_after)
+                    continue
+                else:
+                    log_error(f"[{self.user}] Error HTTP: {str(e)}")
                     continue
                     
-                await asyncio.sleep(self.config.message_delay)
+            except Exception as e:
+                log_error(f"[{self.user}] Error tidak dikenal: {str(e)}")
+                continue
+                
+            await asyncio.sleep(self.config.message_delay)
 
         log_success(f"[{self.user}] Berhasil mengirim {self.config.message_count} pesan")
         await self.close()
@@ -208,6 +210,21 @@ def main():
     if not tokens:
         log_error("Tidak ada token yang berhasil dimuat!")
         return
+
+    print(f"\n{white}Pilih Mode Leveling:{reset}")
+    print(f"{blue}1. {white}Leveling with Delete Message enable{reset}")
+    print(f"{blue}2. {white}Leveling without Delete Message{reset}")
+    
+    while True:
+        try:
+            mode = int(input(f"\n{magenta}Pilih mode [1/2]: {reset}"))
+            if mode in [1, 2]:
+                break
+            print(f"{red}Pilihan tidak valid! Pilih 1 atau 2.{reset}")
+        except ValueError:
+            print(f"{red}Input tidak valid! Masukkan angka 1 atau 2.{reset}")
+    
+    delete_mode = mode == 1
     
     channel_id = int(input(f"{magenta}Masukkan Channel ID: {reset}"))
     message_count = int(input(f"{magenta}Berapa banyak pesan yang akan dikirim: {reset}"))
@@ -215,13 +232,12 @@ def main():
     
     accounts = []
     for token in tokens:
-        accounts.append(AccountConfig(token, channel_id, message_count, message_delay))
+        accounts.append(AccountConfig(token, channel_id, message_count, message_delay, delete_mode))
     
     # Menjalankan akun satu per satu
     for i, config in enumerate(accounts, 1):
         log_info(f"Menjalankan akun {i} dari {len(accounts)}...")
         try:
-            # Buat event loop baru untuk setiap akun
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             

@@ -1,6 +1,6 @@
 # Discord Auto Chat
 
-Bot Discord sederhana untuk auto-leveling dengan fitur pengiriman pesan otomatis yang mendukung multiple akun.
+Bot Discord untuk auto-leveling dengan fitur pengiriman pesan otomatis yang mendukung multiple akun.
 
 ## Fitur
 
@@ -106,11 +106,3 @@ Script akan menangani berbagai jenis error:
    - Token tidak valid: Perbarui token di token.txt
    - Rate limit: Script akan otomatis menunggu
    - Timeout: Tunggu sampai timeout selesai
-
-## Kontribusi
-
-Kontribusi selalu diterima. Untuk perubahan besar, harap buka issue terlebih dahulu untuk mendiskusikan apa yang ingin diubah.
-
-## License
-
-[MIT](https://choosealicense.com/licenses/mit/) 
